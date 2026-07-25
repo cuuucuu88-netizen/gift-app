@@ -101,9 +101,17 @@ auth.onAuthStateChanged((user) => {
     }
 });
 
+// [تم التعديل هنا] استخدام signInWithPopup بدلاً من signInWithRedirect لتجنب مشاكل الـ APK
 function loginWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithRedirect(provider);
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            console.log("تم تسجيل الدخول بنجاح:", result.user);
+        })
+        .catch((error) => {
+            console.error("خطأ في تسجيل الدخول:", error);
+            showCustomAlert("فشل تسجيل الدخول: " + error.message, "خطأ", "❌");
+        });
 }
 
 function loadUserData(userId) {
@@ -450,7 +458,7 @@ function redeemPrize(prizeName, cost, inputId) {
         document.getElementById(inputId).value = '';
     });
 }
-// رقم الإصدار الحالي لتطبيقك (قم بزيادته مستقبلاً إذا أضفت تحديثاً جديداً)
+
 const CURRENT_APP_VERSION = "1.0"; 
 
 async function checkAppVersion() {
@@ -459,10 +467,9 @@ async function checkAppVersion() {
         const doc = await docRef.get();
 
         if (doc.exists) {
-            const latestVersion = doc.data().version; // النسخة المطلوبة في السيرفر
-            const updateUrl = doc.data().url;         // رابط تحميل التحديث الجديد
+            const latestVersion = doc.data().version; 
+            const updateUrl = doc.data().url;         
 
-            // إذا كانت النسخة الحالية تختلف عن نسخة السيرفر، يتم إظهار شاشة التحديث الإجباري
             if (latestVersion !== CURRENT_APP_VERSION) {
                 document.getElementById('force-update-modal').style.display = 'flex';
                 window.appUpdateLink = updateUrl;
@@ -473,7 +480,6 @@ async function checkAppVersion() {
     }
 }
 
-// دالة الانتقال لرابط التحميل عند الضغط على زر التحديث
 function openUpdateLink() {
     if (window.appUpdateLink) {
         window.location.href = window.appUpdateLink;
@@ -482,7 +488,6 @@ function openUpdateLink() {
     }
 }
 
-// تشغيل الفحص فور فتح التطبيق
 window.addEventListener('DOMContentLoaded', () => {
     checkAppVersion();
 });
