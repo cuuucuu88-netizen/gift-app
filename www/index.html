@@ -15,6 +15,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- مكتبة EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript">
+       (function(){
+          emailjs.init("2tDTswje0zW1p-8fL"); 
+       })();
+    </script>
 </head>
 <body>
 
@@ -39,20 +47,46 @@
         </div>
     </div>
 
-    <!-- واجهة تسجيل الدخول (Login Screen) -->
-    <div id="login-screen" class="onboarding-screen" style="display: none; justify-content: flex-start; padding-top: 60px;">
-        <div class="splash-logo" style="font-size: 60px; margin-bottom: 10px;">💎</div>
-        <h2 style="font-size: 24px; margin-bottom: 30px;">أهلاً بك !</h2>
-        
-        <div style="font-size: 120px; margin-bottom: 20px;">🛍️</div>
+    <!-- واجهة تسجيل الدخول بالبريد وكلمة السر + الدخول كضيف -->
+    <div id="login-screen" class="onboarding-screen" style="display: none; justify-content: flex-start; padding-top: 30px; overflow-y: auto;">
+        <div class="splash-logo" style="font-size: 50px; margin-bottom: 5px;">💎</div>
+        <h2 style="font-size: 20px; margin-bottom: 15px;">تسجيل الدخول / إنشاء حساب</h2>
 
-        <div class="login-card-box">
-            <h3>تسجيل الدخول</h3>
-            <button class="btn-google-custom" onclick="loginWithGoogle()">
-                <span style="background: white; color: #7c3aed; border-radius: 50%; padding: 4px 8px; font-weight: bold;">G</span>
-                التسجيل عن طريق جوجل
-            </button>
-            <p class="privacy-text">عند تسجيل الدخول فانت توافق على <span>سياسة الخصوصية</span></p>
+        <div class="login-card-box" style="width: 90%; max-width: 350px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 15px;">
+            
+            <!-- حقول البريد وكلمة السر -->
+            <div style="margin-bottom: 10px; text-align: right;">
+                <label style="font-size: 12px; color: #fff;">البريد الإلكتروني:</label>
+                <input type="email" id="auth-email" placeholder="name@example.com" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; margin-top: 3px; box-sizing: border-box;">
+            </div>
+
+            <div style="margin-bottom: 12px; text-align: right;">
+                <label style="font-size: 12px; color: #fff;">كلمة السر:</label>
+                <input type="password" id="auth-password" placeholder="********" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; margin-top: 3px; box-sizing: border-box;">
+            </div>
+
+            <!-- أزرار الدخول وإنشاء الحساب -->
+            <button class="btn-action" onclick="loginWithEmail()" style="width: 100%; margin-bottom: 8px; background: #7c3aed; padding: 8px; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer;">تسجيل الدخول</button>
+            <button class="btn-action" onclick="registerWithEmail()" style="width: 100%; margin-bottom: 12px; background: #2563eb; padding: 8px; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer;">إنشاء حساب جديد</button>
+            
+            <div style="border-top: 1px solid rgba(255,255,255,0.3); margin: 8px 0; padding-top: 8px;">
+                <!-- زر الدخول كضيف -->
+                <button class="btn-action" onclick="loginAsGuest()" style="width: 100%; background: #4b5563; padding: 8px; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer;">👤 الدخول كضيف</button>
+            </div>
+
+            <p class="privacy-text" style="font-size: 10px; margin-top: 8px;">عند تسجيل الدخول فانت توافق على <span>سياسة الخصوصية</span></p>
+        </div>
+    </div>
+
+    <!-- نافذة إدخال كود التحقق OTP -->
+    <div id="otp-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="text-align: center; padding: 25px;">
+            <div style="font-size: 40px; margin-bottom: 10px;">🔐</div>
+            <h2 style="font-size: 18px; margin-bottom: 10px; color: #1f2937;">التحقق من البريد الإلكتروني</h2>
+            <p style="font-size: 13px; color: #6b7280; margin-bottom: 15px;">تم إرسال كود التحقق المكون من 6 أرقام إلى بريدك. يرجى إدخاله أدناه:</p>
+            <input type="text" id="otp-code-input" placeholder="123456" maxlength="6" style="width: 80%; padding: 10px; text-align: center; font-size: 20px; letter-spacing: 5px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 15px;">
+            <button class="btn-action" onclick="verifyOtpCode()" style="width: 100%; background: #10b981; padding: 10px; border-radius: 8px; color: white; font-weight: bold; cursor: pointer;">تأكيد الكود</button>
+            <button onclick="closeOtpModal()" style="background: none; border: none; color: #ef4444; margin-top: 10px; cursor: pointer; font-size: 12px;">إلغاء</button>
         </div>
     </div>
 
@@ -64,23 +98,30 @@
                 <h1 class="header-main-title" style="font-size: 12px; margin: 0; opacity: 0.8;">اربح مع ياسر</h1>
                 <h3 id="user-display-name" style="font-size: 17px; margin: 2px 0; font-weight: bold;">زائر</h3>
                 <p id="user-email-text" style="font-size: 11px; margin: 0; opacity: 0.9;">يرجى تسجيل الدخول</p>
+                
+                <!-- زر تسجيل الدخول للضيوف -->
+                <button id="show-login-btn" onclick="showLoginScreen()" style="margin-top: 5px; background: #ffffff; color: #7c3aed; border: none; padding: 3px 10px; border-radius: 5px; font-size: 11px; font-weight: bold; cursor: pointer; width: fit-content;">🔑 تسجيل الدخول</button>
             </div>
         </div>
         
-        <div class="points-badge">
-            <span id="user-points">0</span> 💎
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+            <div class="points-badge">
+                <span id="user-points">0</span> 💎
+            </div>
+            <!-- زر تسجيل الخروج -->
+            <button id="logout-btn" onclick="logoutUser()" style="display: none; background: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;">تسجيل الخروج</button>
         </div>
     </header>
 
     <!-- زر تسجيل الدخول الاحتياطي -->
     <div id="auth-container" class="auth-box" style="display: none;">
-        <button id="login-btn" onclick="loginWithGoogle()" class="btn-google">🔑 تسجيل الدخول عبر Google</button>
+        <button id="login-btn" onclick="loginWithEmail()" class="btn-google">🔑 تسجيل الدخول</button>
     </div>
 
     <!-- المحتوى الرئيسي -->
     <main class="main-content">
 
-        <!-- 2. قسم الألعاب والأسئلة (مدمجة معاً) -->
+        <!-- 2. قسم الألعاب والأسئلة -->
         <div class="combined-section-box">
             <h2 class="main-section-title">🎮 الألعاب والمسابقات</h2>
             
@@ -130,7 +171,7 @@
             </section>
         </div>
 
-        <!-- 3. قسم العجلة والكوبونات (مدمجة معاً) -->
+        <!-- 3. قسم العجلة والكوبونات -->
         <div class="combined-section-box">
             <h2 class="main-section-title">🎡 الحظ والكوبونات</h2>
 
@@ -180,7 +221,7 @@
             </section>
         </div>
 
-        <!-- 4. قسم متجر الاستبدال لوحده -->
+        <!-- 4. قسم متجر الاستبدال -->
         <div class="combined-section-box" id="store-section">
             <h2 class="main-section-title">🛒 متجر الاستبدال</h2>
             <div class="store-grid">
@@ -205,7 +246,7 @@
     </main>
 
     <!-- نافذة الإعلانات -->
-    <div id="ad-modal" class="modal-overlay">
+    <div id="ad-modal" class="modal-overlay" style="display: none;">
         <div class="modal-box">
             <h2>📺 جاري عرض الإعلان...</h2>
             <div class="ad-placeholder">
@@ -217,7 +258,7 @@
     </div>
 
     <!-- نافذة الألعاب -->
-    <div id="game-modal" class="modal-overlay">
+    <div id="game-modal" class="modal-overlay" style="display: none;">
         <div class="modal-box">
             <h2 id="game-title">🎮 اللعبة</h2>
             <div class="game-area">
@@ -230,7 +271,7 @@
     </div>
 
     <!-- نافذة الاختبارات -->
-    <div id="quiz-modal" class="modal-overlay">
+    <div id="quiz-modal" class="modal-overlay" style="display: none;">
         <div class="modal-box modern-quiz-box">
             <div class="quiz-header-icon">❓</div>
             <h2>سؤال الاختبار</h2>
@@ -243,7 +284,7 @@
     </div>
 
     <!-- النافذة المنبثقة للتنبيهات -->
-    <div id="custom-alert-modal" class="modal-overlay">
+    <div id="custom-alert-modal" class="modal-overlay" style="display: none;">
         <div class="modal-box custom-alert-box">
             <div class="alert-icon" id="custom-alert-icon">✨</div>
             <h3 id="custom-alert-title">تنبيه</h3>
