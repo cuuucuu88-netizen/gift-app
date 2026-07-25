@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.yasser.giftapp" version="1.0.0" xmlns="http://www.w3.org/ns/widgets">
+    <name>Gift Yaseer</name>
+    <description>تطبيق ربح مع ياسر لتجميع النقاط والجوائز</description>
+    <author email="yasserqp11a@gmail.com" href="">Yasser</author>
+    <content src="index.html" />
+    <preference name="Orientation" value="portrait" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+</widget>
