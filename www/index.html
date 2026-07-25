@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gift Yaseer</title>
+    
+    <link rel="icon" type="image/png" href="app-icon.png">
+    <link rel="apple-touch-icon" href="app-icon.png">
+    <link rel="manifest" href="manifest.json">
+
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- مكتبات Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <!-- واجهة البداية (Splash Screen) -->
+    <div id="splash-screen" class="onboarding-screen">
+        <div class="splash-content" style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px;">
+            <div></div>
+            <img src="splash-bg.png" alt="Gift Yaseer Splash" style="width: 100%; max-width: 300px; height: auto; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <div class="loader-bar" style="margin-bottom: 20px;">
+                <div class="loader-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- واجهة التعليمات والترحيب (Onboarding) -->
+    <div id="onboarding-slide-1" class="onboarding-screen" style="display: none;">
+        <div class="slide-content">
+            <div style="font-size: 90px; margin-bottom: 20px;">🎁</div>
+            <h2 class="onboarding-title">استبدل المكافآت</h2>
+            <p class="onboarding-desc">استخدم نقاطك للحصول على جوائز في ألعابك المفضلة بكل سهولة وأمان.</p>
+            <button class="btn-onboarding" onclick="nextSlide()">التالي</button>
+        </div>
+    </div>
+
+    <!-- واجهة تسجيل الدخول (Login Screen) -->
+    <div id="login-screen" class="onboarding-screen" style="display: none; justify-content: flex-start; padding-top: 60px;">
+        <div class="splash-logo" style="font-size: 60px; margin-bottom: 10px;">💎</div>
+        <h2 style="font-size: 24px; margin-bottom: 30px;">أهلاً بك !</h2>
+        
+        <div style="font-size: 120px; margin-bottom: 20px;">🛍️</div>
+
+        <div class="login-card-box">
+            <h3>تسجيل الدخول</h3>
+            <button class="btn-google-custom" onclick="loginWithGoogle()">
+                <span style="background: white; color: #7c3aed; border-radius: 50%; padding: 4px 8px; font-weight: bold;">G</span>
+                التسجيل عن طريق جوجل
+            </button>
+            <p class="privacy-text">عند تسجيل الدخول فانت توافق على <span>سياسة الخصوصية</span></p>
+        </div>
+    </div>
+
+    <!-- 1. قسم معلومات الحساب (الهيدر العلوي) -->
+    <header class="app-header">
+        <div class="user-info" style="display: flex; align-items: center; gap: 12px;">
+            <img id="user-avatar" src="app-icon.png" alt="صورة المستخدم" class="avatar" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid white;">
+            <div class="user-details" style="display: flex; flex-direction: column;">
+                <h1 class="header-main-title" style="font-size: 12px; margin: 0; opacity: 0.8;">اربح مع ياسر</h1>
+                <h3 id="user-display-name" style="font-size: 17px; margin: 2px 0; font-weight: bold;">زائر</h3>
+                <p id="user-email-text" style="font-size: 11px; margin: 0; opacity: 0.9;">يرجى تسجيل الدخول</p>
+            </div>
+        </div>
+        
+        <div class="points-badge">
+            <span id="user-points">0</span> 💎
+        </div>
+    </header>
+
+    <!-- زر تسجيل الدخول الاحتياطي -->
+    <div id="auth-container" class="auth-box" style="display: none;">
+        <button id="login-btn" onclick="loginWithGoogle()" class="btn-google">🔑 تسجيل الدخول عبر Google</button>
+    </div>
+
+    <!-- المحتوى الرئيسي -->
+    <main class="main-content">
+
+        <!-- 2. قسم الألعاب والأسئلة (مدمجة معاً) -->
+        <div class="combined-section-box">
+            <h2 class="main-section-title">🎮 الألعاب والمسابقات</h2>
+            
+            <!-- فرع الألعاب -->
+            <section class="category-section">
+                <div class="section-header">
+                    <h2>الألعاب</h2>
+                </div>
+                <div class="horizontal-scroll">
+                    <div class="card game-card" onclick="openGameModal('Subway Surfers', 20)">
+                        <img src="subway-icon.png" alt="Subway Surfers" class="game-thumb">
+                        <h3>Subway Surfers</h3>
+                        <button class="btn-action btn-game">لعب الآن (+20)</button>
+                    </div>
+
+                    <div class="card game-card" onclick="openGameModal('Chicken Merge', 20)">
+                        <img src="chicken-icon.png" alt="Chicken Merge" class="game-thumb">
+                        <h3>Chicken Merge</h3>
+                        <button class="btn-action btn-game">لعب الآن (+20)</button>
+                    </div>
+
+                    <div class="card game-card" onclick="openGameModal('Flappy Bird', 20)">
+                        <img src="flappy-icon.png" alt="Flappy Bird" class="game-thumb">
+                        <h3>Flappy Bird</h3>
+                        <button class="btn-action btn-game">لعب الآن (+20)</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- فرع الأسئلة والاختبارات -->
+            <section class="category-section" style="margin-bottom: 0;">
+                <div class="section-header">
+                    <h2>الأسئلة والاختبارات</h2>
+                </div>
+                <div class="horizontal-scroll">
+                    <div class="card">
+                        <div class="card-icon">❓</div>
+                        <h3>أسئلة عامة</h3>
+                        <button class="btn-action" onclick="startQuiz('general')">بدء الاختبار (+1)</button>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">🧮</div>
+                        <h3>رياضيات</h3>
+                        <button class="btn-action" onclick="startQuiz('math')">بدء الاختبار (+1)</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 3. قسم العجلة والكوبونات (مدمجة معاً) -->
+        <div class="combined-section-box">
+            <h2 class="main-section-title">🎡 الحظ والكوبونات</h2>
+
+            <!-- فرع الكوبونات -->
+            <section class="category-section">
+                <div class="section-header">
+                    <h2>استبدال الكوبونات</h2>
+                </div>
+                <div class="coupon-card">
+                    <p>أدخل رمز الكوبون الخاص بك للحصول على النقاط</p>
+                    <div class="coupon-input-group">
+                        <input type="text" id="coupon-code-input" placeholder="أدخل الكوبون هنا">
+                        <button class="btn-action btn-coupon" onclick="redeemCoupon()">تفعيل</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- فرع عجلة الحظ -->
+            <section class="category-section" style="margin-bottom: 0;">
+                <div class="section-header">
+                    <h2>عجلة الجواهر اليومية</h2>
+                </div>
+                <div class="wheel-box">
+                    <div class="wheel-container">
+                        <div class="pointer">▼</div>
+                        <div class="wheel-svg-wrapper" id="wheel-wrapper">
+                            <svg viewBox="0 0 200 200" class="wheel-svg">
+                                <path d="M100,100 L100,0 A100,100 0 0,1 186.6,50 Z" fill="#e11d48"/>
+                                <path d="M100,100 L186.6,50 A100,100 0 0,1 186.6,150 Z" fill="#2563eb"/>
+                                <path d="M100,100 L186.6,150 A100,100 0 0,1 100,200 Z" fill="#16a34a"/>
+                                <path d="M100,100 L100,200 A100,100 0 0,1 13.4,150 Z" fill="#d97706"/>
+                                <path d="M100,100 L13.4,150 A100,100 0 0,1 13.4,50 Z" fill="#9333ea"/>
+                                <path d="M100,100 L13.4,50 A100,100 0 0,1 100,0 Z" fill="#0891b2"/>
+                                
+                                <text x="125" y="35" fill="#fff" font-weight="bold" font-size="14" transform="rotate(30 100 100)">10</text>
+                                <text x="125" y="35" fill="#fff" font-weight="bold" font-size="14" transform="rotate(90 100 100)">30</text>
+                                <text x="125" y="35" fill="#fff" font-weight="bold" font-size="14" transform="rotate(150 100 100)">70</text>
+                                <text x="125" y="35" fill="#fff" font-weight="bold" font-size="14" transform="rotate(210 100 100)">0</text>
+                                <text x="125" y="35" fill="#fff" font-weight="bold" font-size="14" transform="rotate(270 100 100)">100</text>
+                                <text x="125" y="35" fill="#fff" font-weight="bold" font-size="14" transform="rotate(330 100 100)">500</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <button id="spin-btn" class="btn-spin" onclick="spinWheel()">تدوير العجلة 🎡</button>
+                    <p id="wheel-timer" class="timer-text"></p>
+                </div>
+            </section>
+        </div>
+
+        <!-- 4. قسم متجر الاستبدال لوحده -->
+        <div class="combined-section-box" id="store-section">
+            <h2 class="main-section-title">🛒 متجر الاستبدال</h2>
+            <div class="store-grid">
+                <div class="store-item">
+                    <img src="pubg-icon.png" alt="PUBG Mobile" class="store-game-img">
+                    <h3>PUBG Mobile - 60 UC</h3>
+                    <p class="price">10000 💎</p>
+                    <input type="text" id="pubg-id" placeholder="أدخل ID ببجي">
+                    <button class="btn-redeem" onclick="redeemPrize('PUBG 60 UC', 10000, 'pubg-id')">استبدال</button>
+                </div>
+
+                <div class="store-item">
+                    <img src="ff-icon.png" alt="Free Fire" class="store-game-img">
+                    <h3>Free Fire - 100 جواهر</h3>
+                    <p class="price">10000 💎</p>
+                    <input type="text" id="ff-id" placeholder="أدخل ID فري فاير">
+                    <button class="btn-redeem" onclick="redeemPrize('Free Fire 100 Diamonds', 10000, 'ff-id')">استبدال</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- نافذة الإعلانات -->
+    <div id="ad-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2>📺 جاري عرض الإعلان...</h2>
+            <div class="ad-placeholder">
+                <p>📢 استمتع بالعرض للحصول على المكافأة!</p>
+                <div class="loader-spinner"></div>
+            </div>
+            <p class="ad-timer">يرجى الانتظار: <span id="ad-seconds">5</span> ثوانٍ</p>
+        </div>
+    </div>
+
+    <!-- نافذة الألعاب -->
+    <div id="game-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 id="game-title">🎮 اللعبة</h2>
+            <div class="game-area">
+                <p id="game-instruction">انقر سريعا لجمع النقاط قبل انتهاء الوقت!</p>
+                <button id="game-tap-btn" class="btn-spin" onclick="registerTap()">اضغط هنا! 🎯</button>
+                <p class="score-text">عدد الضغطات: <span id="tap-count">0</span></p>
+            </div>
+            <p class="ad-timer">الوقت المتبقي: <span id="game-seconds">10</span> ثوانٍ</p>
+        </div>
+    </div>
+
+    <!-- نافذة الاختبارات -->
+    <div id="quiz-modal" class="modal-overlay">
+        <div class="modal-box modern-quiz-box">
+            <div class="quiz-header-icon">❓</div>
+            <h2>سؤال الاختبار</h2>
+            <p id="quiz-question" class="quiz-question-text">السؤال سيظهر هنا...</p>
+            
+            <div id="quiz-options" class="quiz-options-container"></div>
+            
+            <button class="btn-action btn-close-quiz" onclick="closeQuizModal()">إلغاء</button>
+        </div>
+    </div>
+
+    <!-- النافذة المنبثقة للتنبيهات -->
+    <div id="custom-alert-modal" class="modal-overlay">
+        <div class="modal-box custom-alert-box">
+            <div class="alert-icon" id="custom-alert-icon">✨</div>
+            <h3 id="custom-alert-title">تنبيه</h3>
+            <p id="custom-alert-message">رسالة التنبيه ستظهر هنا</p>
+            <button class="btn-action btn-custom-alert" onclick="closeCustomAlert()">حسناً</button>
+        </div>
+    </div>
+
+    <!-- شريط التنقل السفلي -->
+    <nav id="bottom-nav" class="bottom-nav">
+        <a href="#" class="nav-item active">🏠 الرئيسية</a>
+        <a href="#store-section" class="nav-item">🛒 المتجر</a>
+        <a href="#" onclick="showRewardAd()" class="nav-item">📺 إعلانات</a>
+    </nav>
+
+    <!-- نافذة التحديث الإجباري -->
+    <div id="force-update-modal" class="modal-overlay" style="display: none; z-index: 9999;">
+        <div class="modal-box" style="text-align: center; padding: 30px 20px;">
+            <div style="font-size: 50px; margin-bottom: 15px;">🚀</div>
+            <h2 style="color: #1f2937; margin-bottom: 10px; font-size: 20px;">تحديث جديد متوفر!</h2>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 20px; line-height: 1.5;">
+                يتوفر إصدار جديد من تطبيق Gift Yaseer يضم ميزات وتحسينات مهمة. يجب عليك التحديث للمتابعة.
+            </p>
+            <button onclick="openUpdateLink()" class="btn-action" style="width: 100%; padding: 12px; font-size: 16px; background: #10b981;">
+                تحديث الآن 📲
+            </button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
