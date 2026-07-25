@@ -37,10 +37,16 @@ jobs:
       - name: Build APK
         run: |
           cd my-app
-          cordova build android --release
+          cordova build android
+
+      - name: Find and List APKs
+        run: find . -name "*.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: my-app/**/*.apk
+          name: my-compiled-apk
+          path: |
+            my-app/platforms/android/app/build/outputs/apk/**/*.apk
+            my-app/**/*.apk
+            **/*.apk
