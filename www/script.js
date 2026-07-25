@@ -12,10 +12,13 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 let currentUser = null;
+let isGuest = false;
 let points = 0;
 let lastSpinTime = 0;
 let isSpinning = false;
 let usedCoupons = [];
+let pendingEmail = "";
+let pendingPassword = "";
 
 const validCoupons = {
     "SOSO": 500,
@@ -37,41 +40,51 @@ function closeCustomAlert() {
     document.getElementById('custom-alert-modal').style.display = 'none';
 }
 
-function speakText(text) {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'ar-SA';
-        msg.rate = 0.9;
-        
-        if (window.speechSynthesis.getVoices().length === 0) {
-            window.speechSynthesis.onvoiceschanged = () => {
-                window.speechSynthesis.speak(msg);
-            };
-        } else {
-            window.speechSynthesis.speak(msg);
-        }
-    }
+function showLoginScreen() {
+    isGuest = false;
+    document.getElementById('login-screen').style.display = 'flex';
 }
 
-document.addEventListener('click', function unlockAudio() {
-    if ('speechSynthesis' in window) {
-        const dummyMsg = new SpeechSynthesisUtterance("");
-        window.speechSynthesis.speak(dummyMsg);
-    }
-    document.removeEventListener('click', unlockAudio);
-}, { once: true });
+function logoutUser() {
+    auth.signOut().then(() => {
+        isGuest = false;
+        currentUser = null;
+        points = 0;
+        
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('user-display-name').innerText = "زائر";
+        document.getElementById('user-email-text').innerText = "يرجى تسجيل الدخول";
+        document.getElementById('user-points').innerText = 0;
+        
+        document.getElementById('logout-btn').style.display = 'none';
+        const loginBtnElem = document.getElementById('show-login-btn');
+        if (loginBtnElem) loginBtnElem.style.display = 'block';
+
+        showCustomAlert("تم تسجيل الخروج بنجاح.", "تنبيه", "👋");
+    }).catch((error) => {
+        showCustomAlert("حدث خطأ أثناء تسجيل الخروج: " + error.message, "خطأ", "❌");
+    });
+}
 
 window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const splash = document.getElementById('splash-screen');
-        if (splash) splash.style.display = 'none';
+        if (splash) {
+            splash.style.display = 'none';
+        }
         
-        if (!auth.currentUser) {
+        if (!auth.currentUser && !isGuest) {
             const slide1 = document.getElementById('onboarding-slide-1');
-            if (slide1) slide1.style.display = 'flex';
+            if (slide1) {
+                slide1.style.display = 'flex';
+            } else {
+                const loginScr = document.getElementById('login-screen');
+                if (loginScr) loginScr.style.display = 'flex';
+            }
         }
     }, 2000);
+
+    checkAppVersion();
 });
 
 function nextSlide() {
@@ -79,8 +92,149 @@ function nextSlide() {
     document.getElementById('login-screen').style.display = 'flex';
 }
 
+// إرسال كود الـ OTP عبر EmailJS بالمعرفات الصحيحة
+function registerWithEmail() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+
+    if (!email || !password) {
+        showCustomAlert("يرجى إدخال البريد الإلكتروني وكلمة السر لإنشاء الحساب!", "خطأ", "⚠️");
+        return;
+    }
+
+    pendingEmail = email;
+    pendingPassword = password;
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    db.collection('pending_otps').doc(email).set({
+        otp: otpCode,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        showCustomAlert("جاري إرسال كود التحقق إلى بريدك الإلكتروني...", "انتظر قليلاً", "⏳");
+
+        // استخدام الـ Service ID والـ Template ID الصحيحين بحروف صغيرة
+        emailjs.send("service_l4cp7bl", "template_6b8jdk8", {
+            to_email: email,
+            otp_code: otpCode
+        }).then(() => {
+            closeCustomAlert();
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('otp-modal').style.display = 'flex';
+            showCustomAlert(`تم إرسال كود التحقق إلى ${email}. يرجى تفقد بريدك وإدخاله هنا.`, "تم إرسال الكود", "✉️");
+        }, (error) => {
+            showCustomAlert("فشل إرسال البريد الإلكتروني، تأكد من صحة الإيميل: " + JSON.stringify(error), "خطأ", "❌");
+        });
+
+    }).catch((error) => {
+        showCustomAlert("خطأ في نظام التحقق: " + error.message, "خطأ", "❌");
+    });
+}
+
+function verifyOtpCode() {
+    const enteredOtp = document.getElementById('otp-code-input').value.trim();
+
+    if (!enteredOtp) {
+        showCustomAlert("يرجى إدخال كود التحقق!", "خطأ", "⚠️");
+        return;
+    }
+
+    db.collection('pending_otps').doc(pendingEmail).get().then((doc) => {
+        if (!doc.exists) {
+            showCustomAlert("انتهت صلاحية الكود، يرجى إعادة المحاولة.", "خطأ", "❌");
+            return;
+        }
+
+        const storedOtp = doc.data().otp;
+
+        if (storedOtp === enteredOtp) {
+            auth.createUserWithEmailAndPassword(pendingEmail, pendingPassword)
+                .then((userCredential) => {
+                    db.collection('pending_otps').doc(pendingEmail).delete();
+                    document.getElementById('otp-modal').style.display = 'none';
+                    isGuest = false;
+                    showCustomAlert("تم تأكيد البريد وإنشاء الحساب بنجاح!", "مرحباً", "🎉");
+                })
+                .catch((error) => {
+                    if (error.code === 'auth/email-already-in-use') {
+                        // إذا كان الإيميل مسجلاً مسبقاً، قم بتسجيل الدخول مباشرة به
+                        auth.signInWithEmailAndPassword(pendingEmail, pendingPassword)
+                            .then(() => {
+                                db.collection('pending_otps').doc(pendingEmail).delete();
+                                document.getElementById('otp-modal').style.display = 'none';
+                                isGuest = false;
+                                showCustomAlert("هذا البريد مستخدم مسبقاً، تم تسجيل الدخول بنجاح!", "مرحباً بعودتك", "🎉");
+                            })
+                            .catch((loginError) => {
+                                showCustomAlert("كلمة المرور غير صحيحة لهذا البريد المسجل مسبقاً.", "خطأ", "❌");
+                            });
+                    } else {
+                        showCustomAlert("فشل إنشاء الحساب: " + error.message, "خطأ", "❌");
+                    }
+                });
+        } else {
+            showCustomAlert("كود التحقق غير صحيح، حاول مرة أخرى.", "خطأ", "❌");
+        }
+    });
+}
+
+function closeOtpModal() {
+    document.getElementById('otp-modal').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+}
+
+function loginWithEmail() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+
+    if (!email || !password) {
+        showCustomAlert("يرجى إدخال البريد الإلكتروني وكلمة السر!", "خطأ", "⚠️");
+        return;
+    }
+
+    auth.signInWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            isGuest = false;
+            document.getElementById('login-screen').style.display = 'none';
+            showCustomAlert("مرحباً بك، تم تسجيل الدخول بنجاح!", "نجاح", "🎉");
+        })
+        .catch((error) => {
+            showCustomAlert("فشل تسجيل الدخول: " + error.message, "خطأ", "❌");
+        });
+}
+
+function loginAsGuest() {
+    isGuest = true;
+    currentUser = null;
+    points = 0;
+    
+    const splash = document.getElementById('splash-screen');
+    if (splash) splash.style.display = 'none';
+    const slide1 = document.getElementById('onboarding-slide-1');
+    if (slide1) slide1.style.display = 'none';
+    const loginScr = document.getElementById('login-screen');
+    if (loginScr) loginScr.style.display = 'none';
+
+    document.getElementById('auth-container').style.display = 'none';
+    document.getElementById('user-display-name').innerText = "زائر (ضيف)";
+    document.getElementById('user-email-text').innerHTML = 'وضع الضيف - بدون صلاحيات';
+    
+    const loginBtnElem = document.getElementById('show-login-btn');
+    if (loginBtnElem) loginBtnElem.style.display = 'block';
+    
+    const logoutBtnElem = document.getElementById('logout-btn');
+    if (logoutBtnElem) logoutBtnElem.style.display = 'none';
+
+    document.getElementById('user-points').innerText = 0;
+    
+    showCustomAlert("تم الدخول كضيف. يمكنك تصفح التطبيق، ولكن لن تتمكن من جمع النقاط أو الشراء حتى تقوم بتسجيل الدخول بحساب حقيقي.", "تنبيه الضيف", "👤");
+}
+
 auth.onAuthStateChanged((user) => {
-    if (user) {
+    const loginBtnElem = document.getElementById('show-login-btn');
+    const logoutBtnElem = document.getElementById('logout-btn');
+
+    if (user && !isGuest) {
         currentUser = user;
         const splash = document.getElementById('splash-screen');
         if (splash) splash.style.display = 'none';
@@ -90,29 +244,23 @@ auth.onAuthStateChanged((user) => {
         if (loginScr) loginScr.style.display = 'none';
 
         document.getElementById('auth-container').style.display = 'none';
-        document.getElementById('user-display-name').innerText = user.displayName || "مستخدم";
+        document.getElementById('user-display-name').innerText = user.displayName || user.email.split('@')[0];
         document.getElementById('user-email-text').innerText = user.email || "";
+
+        if (loginBtnElem) loginBtnElem.style.display = 'none';
+        if (logoutBtnElem) logoutBtnElem.style.display = 'block';
+
         loadUserData(user.uid);
-    } else {
+    } else if (!isGuest) {
         currentUser = null;
         document.getElementById('user-display-name').innerText = "زائر";
         document.getElementById('user-email-text').innerText = "يرجى تسجيل الدخول";
         document.getElementById('user-points').innerText = 0;
+
+        if (loginBtnElem) loginBtnElem.style.display = 'block';
+        if (logoutBtnElem) logoutBtnElem.style.display = 'none';
     }
 });
-
-// [تم التعديل هنا] استخدام signInWithPopup بدلاً من signInWithRedirect لتجنب مشاكل الـ APK
-function loginWithGoogle() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider)
-        .then((result) => {
-            console.log("تم تسجيل الدخول بنجاح:", result.user);
-        })
-        .catch((error) => {
-            console.error("خطأ في تسجيل الدخول:", error);
-            showCustomAlert("فشل تسجيل الدخول: " + error.message, "خطأ", "❌");
-        });
-}
 
 function loadUserData(userId) {
     db.collection('users').doc(userId).get().then((doc) => {
@@ -133,6 +281,10 @@ function loadUserData(userId) {
 }
 
 function updatePoints(newPoints) {
+    if (isGuest) {
+        showCustomAlert("عذراً، وضع الضيف لا يسمح بجمع النقاط. يرجى تسجيل الدخول بحسابك!", "تنبيه", "🔒");
+        return;
+    }
     points = newPoints;
     document.getElementById('user-points').innerText = points;
     if (currentUser) {
@@ -141,9 +293,8 @@ function updatePoints(newPoints) {
 }
 
 function redeemCoupon() {
-    if (!currentUser) {
-        speakText("فشل الاستبدال");
-        showCustomAlert("يرجى تسجيل الدخول أولاً لاستخدام الكوبونات!", "تنبيه", "🔒");
+    if (isGuest || !currentUser) {
+        showCustomAlert("لا يمكنك استخدام الكوبونات وأنت تتصفح كضيف! يرجى تسجيل الدخول.", "تنبيه", "🔒");
         return;
     }
 
@@ -151,13 +302,11 @@ function redeemCoupon() {
     const code = inputField.value.trim().toUpperCase();
 
     if (!code) {
-        speakText("فشل الاستبدال");
         showCustomAlert("يرجى إدخال رمز الكوبون!", "خطأ", "⚠️");
         return;
     }
 
     if (!validCoupons.hasOwnProperty(code)) {
-        speakText("فشل الاستبدال");
         showCustomAlert("رمز الكوبون غير صحيح أو منتهي الصلاحية!", "خطأ", "❌");
         return;
     }
@@ -167,7 +316,6 @@ function redeemCoupon() {
     }
 
     if (usedCoupons.includes(code)) {
-        speakText("تم الاستبدال مسبقا");
         showCustomAlert("لقد قمت باستخدام هذا الكوبون من قبل بهذا الحساب!", "تنبيه", "⚠️");
         return;
     }
@@ -181,12 +329,8 @@ function redeemCoupon() {
     }).then(() => {
         points += couponReward;
         document.getElementById('user-points').innerText = points;
-        speakText("نجح الاستبدال");
         showCustomAlert(`تم تفعيل الكوبون بنجاح واستلام ${couponReward} نقطة!`, "مبروك 🎉", "🎁");
         inputField.value = '';
-    }).catch((error) => {
-        console.error("خطأ في قاعدة البيانات:", error);
-        showCustomAlert("حدث خطأ أثناء الاتصال بقاعدة البيانات، تأكد من اتصال الإنترنت.", "خطأ شبكة", "🌐");
     });
 }
 
@@ -225,8 +369,8 @@ let currentQuizQuestion = null;
 let askedQuestionIds = new Set();
 
 function startQuiz(type) {
-    if (!currentUser) {
-        showCustomAlert("يرجى تسجيل الدخول أولاً!", "تنبيه", "🔒");
+    if (isGuest || !currentUser) {
+        showCustomAlert("وضع الضيف لا يتيح لك لعب اختبارات لجمع النقاط. سجل الدخول الآن!", "تنبيه", "🔒");
         return;
     }
 
@@ -280,10 +424,8 @@ function checkAnswer(selectedIndex) {
     document.getElementById('quiz-modal').style.display = 'none';
     if (selectedIndex === currentQuizQuestion.correct) {
         updatePoints(points + 1); 
-        speakText("إجابة صحيحة");
         showCustomAlert("إجابة صحيحة! تم إضافة +1 نقطة لرصيدك.", "ممتاز 🎉", "✅");
     } else {
-        speakText("إجابة خاطئة");
         showCustomAlert("إجابة خاطئة! حاول في سؤال آخر.", "تنبيه", "❌");
     }
 }
@@ -293,8 +435,8 @@ function closeQuizModal() {
 }
 
 function showRewardAd() {
-    if (!currentUser) {
-        showCustomAlert("يرجى تسجيل الدخول أولاً!", "تنبيه", "🔒");
+    if (isGuest || !currentUser) {
+        showCustomAlert("لا يمكنك مشاهدة الإعلانات لجمع النقاط وأنت ضيف!", "تنبيه", "🔒");
         return;
     }
 
@@ -321,8 +463,8 @@ let currentGameReward = 0;
 let currentTaps = 0;
 
 function openGameModal(gameName, reward) {
-    if (!currentUser) {
-        showCustomAlert("يرجى تسجيل الدخول أولاً!", "تنبيه", "🔒");
+    if (isGuest || !currentUser) {
+        showCustomAlert("الضيوف غير مسموح لهم بلعب الألعاب لكسب النقاط. سجل الدخول!", "تنبيه", "🔒");
         return;
     }
 
@@ -378,8 +520,8 @@ function checkWheelAvailability() {
 }
 
 function spinWheel() {
-    if (!currentUser) {
-        showCustomAlert("يرجى تسجيل الدخول أولاً!", "تنبيه", "🔒");
+    if (isGuest || !currentUser) {
+        showCustomAlert("تدوير العجلة مخصص للأعضاء المسجلين فقط!", "تنبيه", "🔒");
         return;
     }
     if (isSpinning) return;
@@ -388,10 +530,10 @@ function spinWheel() {
     document.getElementById('spin-btn').disabled = true;
 
     const rewards = [
-        { points: 10,  deg: 30 },
-        { points: 30,  deg: 90 },
-        { points: 70,  deg: 150 },
-        { points: 0,   deg: 210 },
+        { points: 10, deg: 30 },
+        { points: 30, deg: 90 },
+        { points: 70, deg: 150 },
+        { points: 0, deg: 210 },
         { points: 100, deg: 270 },
         { points: 500, deg: 330 }
     ];
@@ -431,8 +573,8 @@ function spinWheel() {
 }
 
 function redeemPrize(prizeName, cost, inputId) {
-    if (!currentUser) {
-        showCustomAlert("يرجى تسجيل الدخول أولاً!", "تنبيه", "🔒");
+    if (isGuest || !currentUser) {
+        showCustomAlert("لا يمكنك الشراء أو الاستبدال وأنت تتصفح كضيف! سجل الدخول الآن.", "تنبيه", "🔒");
         return;
     }
     let playerId = document.getElementById(inputId).value.trim();
@@ -487,7 +629,3 @@ function openUpdateLink() {
         alert("يرجى مراجعة قناة التطبيق لتحميل التحديث.");
     }
 }
-
-window.addEventListener('DOMContentLoaded', () => {
-    checkAppVersion();
-});
