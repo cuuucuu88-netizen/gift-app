@@ -1,4 +1,4 @@
-name: Build Android APK
+Name: Build Android APK
 
 on:
   push:
@@ -32,6 +32,7 @@ jobs:
           rm -rf www
           cp -r ../www .
           cp ../config.xml .
+          cp www/icon.png ./icon.png
           cordova platform add android
 
       - name: Build APK
